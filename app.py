@@ -3,6 +3,7 @@ import configparser
 from base64 import b64decode
 from cryptography.fernet import Fernet
 import datetime
+import pwinput
 
 def decrypt(data, key):
     cipher = Fernet(key)
@@ -15,7 +16,7 @@ class reception_menu():
         print("1. Available Rooms")
         print("2. Check In")
         print("3. Check Out")
-        print("4. Exit")
+        print("0. Exit")
     
     def display_available_rooms(cursor):
         try:
@@ -42,50 +43,55 @@ class reception_menu():
         except mysql.connector.Error as err:
             print(f"Error: {err}")
     
-    def check_in(db_connection, cursor, room_number, first_name, last_name, dob, identification_id):
+    def check_in(db_connection, cursor):
         try:
-            while True:
-                # Display entered data for confirmation
-                print("\nEntered Data for Confirmation:")
-                print(f"Room Number: {room_number}")
-                print(f"First Name: {first_name}")
-                print(f"Last Name: {last_name}")
-                print(f"Date of Birth: {dob}")
-                print(f"Identification ID: {identification_id}")
+            print("\nEnter Check-IN Data")
+            room_number = int(input(f"Room Number: "))
+            first_name = input(f"First Name: ")
+            last_name = input(f"Last Name: ")
+            dob = input(f"Date of Birth (YYYY-MM-DD): ")
+            identification_id = int(input(f"Identification ID: "))
+            # Display entered data for confirmation
+            print("\nEntered Data for Confirmation:")
+            print(f"Room Number: {room_number}")
+            print(f"First Name: {first_name}")
+            print(f"Last Name: {last_name}")
+            print(f"Date of Birth: {dob}")
+            print(f"Identification ID: {identification_id}")
 
-                # Ask user to confirm or correct entered data
-                confirmation = input("Is the entered data correct? (yes/no): ").lower()
+            # Ask user to confirm or correct entered data
+            confirmation = input("Is the entered data correct? (yes/no): ").lower()
 
-                if confirmation == 'yes':
-                    # Data is correct, proceed with check-in
-                    current_date = datetime.now().date()
-                    current_time = datetime.now().time()
+            if confirmation == 'yes':
+                # Data is correct, proceed with check-in
+                current_date = datetime.datetime.now().date()
+                current_time = datetime.datetime.now().time()
 
-                    # Insert data into the 'CurrentStays' table
-                    insert_query = """
-                        INSERT INTO CurrentStays (RoomNumber, FirstName, LastName, DateOfBirth, IdentificationID, DateOfCheckIn, TimeOfCheckIn)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """
-                    cursor.execute(insert_query, (room_number, first_name, last_name, dob, identification_id, current_date, current_time))
-                    db_connection.commit()
+                # Insert data into the 'CurrentStays' table
+                insert_query = """
+                    INSERT INTO CurrentStays (RoomNumber, FirstName, LastName, DateOfBirth, IdentificationID, DateOfCheckIn, TimeOfCheckIn)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(insert_query, (room_number, first_name, last_name, dob, identification_id, current_date, current_time))
+                db_connection.commit()
 
-                    # Set 'IS_OCCUPIED' to 'Y' for the specified room in the 'Rooms' table
-                    update_query = "UPDATE Rooms SET IS_OCCUPIED = 'Y' WHERE RoomNumber = %s"
-                    cursor.execute(update_query, (room_number,))
-                    db_connection.commit()
+                # Set 'IS_OCCUPIED' to 'Y' for the specified room in the 'Rooms' table
+                update_query = "UPDATE Rooms SET IS_OCCUPIED = 'Y' WHERE RoomNumber = %s"
+                cursor.execute(update_query, (room_number,))
+                db_connection.commit()
 
-                    print("Check-in successful!")
+                print("Check-in successful!")
 
-                elif confirmation == 'no':
-                    pass
-                else:
-                    print("Invalid input. Please enter 'yes' or 'no'.")
+            elif confirmation == 'no':
+                pass
+            else:
+                print("Invalid input. Please enter 'yes' or 'no'.")
 
         except mysql.connector.Error as err:
             print(f"Error: {err}")
 
     def check_out(db_connection, cursor):
-        try:
+        # try:
             # Get room number from user input
             room_number = int(input("Enter Room Number for Check-Out: "))
 
@@ -105,9 +111,11 @@ class reception_menu():
                 print(f"Date of Check-In: {current_stay_data[6]} {current_stay_data[7]}")
 
                 # Calculate and display duration of stay
-                check_in_date = datetime.strptime(str(current_stay_data[6]), "%Y-%m-%d")
-                current_date = datetime.now().date()
-                duration_of_stay = (current_date - check_in_date).days
+                check_in_date = datetime.datetime.strptime(str(current_stay_data[6]), "%Y-%m-%d")
+                current_date = datetime.datetime.now().date()
+                duration_of_stay = (current_date - check_in_date.date()).days
+                if duration_of_stay < 1:
+                    duration_of_stay = 1
                 print(f"Duration of Stay: {duration_of_stay} days")
 
                 # Calculate and display bill amount
@@ -115,7 +123,7 @@ class reception_menu():
                 cursor.execute(room_cost_query, (room_number,))
                 room_cost = cursor.fetchone()[0]
                 bill_amount = duration_of_stay * room_cost
-                print(f"Bill Amount: {bill_amount} USD")
+                print(f"Bill Amount: {bill_amount}/-")
 
                 # Confirm check-out
                 confirm_checkout = input("Confirm Check-Out? (yes/no): ").lower()
@@ -135,8 +143,11 @@ class reception_menu():
                     cursor.execute(transfer_query, (
                         current_stay_data[1], current_stay_data[2], current_stay_data[3], current_stay_data[4],
                         current_stay_data[5], bill_amount, current_stay_data[6], current_stay_data[7],
-                        current_date, datetime.now().time()
+                        current_date, datetime.datetime.now().time()
                     ))
+
+                    delete_query = "DELETE FROM CurrentStays where RoomNumber = %s"
+                    cursor.execute(delete_query, (current_stay_data[1],))
                     db_connection.commit()
 
                     print("Check-Out successful.")
@@ -145,8 +156,8 @@ class reception_menu():
             else:
                 print("Room is not occupied.")
 
-        except mysql.connector.Error as err:
-            print(f"Error: {err}")
+        # except mysql.connector.Error as err:
+        #     print(f"Error: {err}")
             
 
 class admin_menu():
@@ -188,6 +199,7 @@ class admin_menu():
                 if choice == '1':
                     if not employees_data:
                         print("No Employees found.")
+                        break
                     else:
                         b = int(input("Enter ID: "))
                         for i in range(len(header)):
@@ -203,7 +215,15 @@ class admin_menu():
                     designation = input("Enter Designation (if the employee is reception/admin write same): ")
                     if designation == 'reception':
                         print("Creating Account.......")
-                        passw = input("Enter Password for user")
+                        while True:
+                            print("Enter Password..")
+                            passw = pwinput.pwinput()
+                            print("Confirm Password..")
+                            passw2 = pwinput.pwinput()
+                            if passw == passw2:
+                                break
+                            else:
+                                print("Password Doesn't Match")
                         print()
                         print(f'Your username is "{first_name}" and password is:', passw)
                         print()
@@ -221,11 +241,21 @@ class admin_menu():
                         cursor.execute(flush_privileges_query)
                     elif designation == 'admin':
                         print("Creating Admin Account.......")
+                        while True:
+                            print("Enter Password..")
+                            passw = pwinput.pwinput()
+                            print("Confirm Password..")
+                            passw2 = pwinput.pwinput()
+                            if passw == passw2:
+                                break
+                            else:
+                                print("Password Doesn't Match")
                         print()
                         print(f'Your username is "{first_name}" and password is:', passw)
                         print()
                         create_user_query = f"CREATE USER '{first_name}'@'%' IDENTIFIED BY '{passw}';"
                         grant_privileges_query = f"GRANT ALL PRIVILEGES ON Restaurant.* TO '{first_name}'@'%' WITH GRANT OPTION;"
+                        grant_create_user_query = f"GRANT CREATE USER ON *.* TO '{first_name}'@'%';"
                         flush_privileges_query = "FLUSH PRIVILEGES;"
                         cursor.execute(create_user_query)
                         cursor.execute(grant_privileges_query)
@@ -327,14 +357,31 @@ class admin_menu():
             if not current_stays_data:
                 print("No current stays found.")
             else:
-                # Display current stays data
-                print("\nCurrent Stays Data:")
-                print("{:<10} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15}".format("Stay ID", "Room Number", "First Name", "Last Name", "DOB", "ID Number", "Check-In Date", "Check-In Time"))
-                print("-" * 125)
-                for stay in current_stays_data:
-                    # Check if any field is None before formatting
-                    formatted_data = tuple("-" if field is None else field for field in stay)
-                    print("{:<10} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15}".format(*formatted_data))
+                while True:
+                    print("\nCurrent Stays")
+                    headers = ["Stay ID", "Room Number", "First Name", "Last Name", "DOB", "ID Number", "Check-In Date", "Check-In Time"]
+                    for i in current_stays_data:
+                        print(f"{headers[1]}: {i[1]}")
+
+                    print("\nView Current Stays Menu")
+                    print("1. Show Full Details")
+                    print("2. Previous Menu")
+
+                    choice = input("Enter your choice (1-2): ")
+
+                    if choice == '1':
+                        b = int(input("Enter Room Number: "))
+                        for i in range(len(headers)):
+                            for a in current_stays_data:
+                                if b in a:
+                                    print(f'{headers[i]}: {a[i]}')
+                    
+                    elif choice == '2':
+                        print("Returning to the previous menu.")
+                        break
+                    
+                    else:
+                        print("Invalid choice. Please enter a number between 1 and 4.")
 
         except mysql.connector.Error as err:
             print(f"Error: {err}")
@@ -347,6 +394,7 @@ class admin_menu():
                 past_employees_data = cursor.fetchall()
                 if not past_employees_data:
                     print("No employees found.")
+                    break
                 else:
                     print("\nEmployee Data:")
                     header = ["First Name", "Last Name", "DOB", "ID Number", "Date Joined", "Date Left", "Designation"]
@@ -384,15 +432,16 @@ class admin_menu():
             cursor.execute("SELECT * FROM PastGuests")
             past_guests_data = cursor.fetchall()
             headers = ["Bill Number", "Room Number", "First Name", "Last Name", "DOB", "ID Number", "Bill Amount", "Check-In Date", "Check-In Time", "Check-Out Date", "Check-Out Time"]
-            if not past_guests_data:
-                print("No past guests found.")
-            else:
-                # Display past guest data
-                print("\nPast Guests Data:")
-                for i in past_guests_data():
-                    print(f'{headers[0]}: {i[0]}')
-                    print(f'{headers[5]}: {i[5]}')
             while True:
+                if not past_guests_data:
+                    print("No past guests found.")
+                    break
+                else:
+                    # Display past guest data
+                    print("\nPast Guests Data:")
+                    for i in past_guests_data:
+                        print(f'{headers[0]}: {i[0]}')
+                        print(f'{headers[5]}: {i[5]}')
                 print("\nPast Guests Menu")
                 print("1. View full details")
                 print("2. Previous Menu")
@@ -439,23 +488,23 @@ def get_user_designation(cursor, username):
         print(f"Error: {err}")
         return None
 
-def main():
-    host, database = read_config()
+if __name__=="__main__":
+    while True:
+        host, database = read_config()
 
-    try:
-        username = input("Enter Username: ")
-        password = input("Enter Password: ")
-        
-        # username = 'admin'
-        # password = 'uqmyhv'
+        try:
+            username = input("Enter Username: ")
+            password = pwinput.pwinput()
 
-        db_connection = mysql.connector.connect(
-            host=host,
-            user=username,
-            password=password,
-            database=database
-        )
-        cursor = db_connection.cursor()
+            db_connection = mysql.connector.connect(
+                host=host,
+                user=username,
+                password=password,
+                database=database
+            )
+            cursor = db_connection.cursor()
+        except mysql.connector.Error as err:
+            print(f"Error Logging IN")
 
         if db_connection.is_connected():
             print("Connected to DB successfully.......")
@@ -468,7 +517,7 @@ def main():
 
                     if choice == '0':
                         print("Exiting...")
-                        break
+                        exit()
                     elif choice == '1':
                         admin_menu.view_employees(db_connection, cursor)
                     elif choice == '2':
@@ -478,14 +527,14 @@ def main():
                     elif choice == '4':
                         admin_menu.view_past_employees(cursor)
                     elif choice == '5':
-                        admin_menu.view_past_guests(cursor)
+                        admin_menu.view_past_guests(db_connection, cursor)
                     else:
                         print("Invalid choice. Please enter a number between 0 and 5.")
 
             elif designation == 'reception':
                 while True:
                     reception_menu.reception_menu()
-                    choice = input("Enter your choice (1-4): ")
+                    choice = input("Enter your choice (0-3): ")
 
                     if choice == '1':
                         reception_menu.display_available_rooms(cursor)
@@ -496,22 +545,11 @@ def main():
                     elif choice == '3':
                         reception_menu.check_out(db_connection, cursor)
                         pass
-                    elif choice == '4':
+                    elif choice == '0':
                         print("Exiting...")
-                        break
+                        exit()
                     else:
-                        print("Invalid choice. Please enter a number between 1 and 4.")
+                        print("Invalid choice. Please enter a number between 0 and 3.")
 
             else:
                 print("Invalid user designation.")
-
-    except mysql.connector.Error as err:
-        print(f"Error: {err}")
-
-    finally:
-        if db_connection.is_connected():
-            cursor.close()
-            db_connection.close()
-
-if __name__ == "__main__":
-    main()

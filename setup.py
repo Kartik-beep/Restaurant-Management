@@ -1,11 +1,23 @@
-import os
-import mysql.connector
-import random
-import string
-from hashlib import sha256
-import configparser
-from cryptography.fernet import Fernet
-from base64 import b64encode
+try:
+    import mysql.connector
+    import random
+    import string
+    from hashlib import sha256
+    import configparser
+    from cryptography.fernet import Fernet
+    from base64 import b64encode
+    import pwinput
+except:
+    import os
+    os.system('pip install cryptography mysql-connector-python pwinput')
+    import mysql.connector
+    import random
+    import string
+    from hashlib import sha256
+    import configparser
+    from cryptography.fernet import Fernet
+    from base64 import b64encode
+    import pwinput
 
 def generate_key():
     return Fernet.generate_key()
@@ -172,7 +184,7 @@ def create_tables(host_ip, host_user, host_password, host_db):
 if __name__ == "__main__":
     ip = input('Enter IP of the Database:')
     user = input('Enter username of root/admin of Database:')
-    password = input('Enter Password of user:')
+    password = pwinput.pwinput()
     database = 'Restaurant'
 
     create_database(ip, user, password)
